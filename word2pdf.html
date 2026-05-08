@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Word 转 PDF</title>
+<script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
+<style>
+  :root {
+    --bg: #f5f5f5;
+    --card-bg: #ffffff;
+    --text: #333;
+    --text-secondary: #666;
+    --border: #e0e0e0;
+    --accent: #4a90d9;
+    --accent-hover: #357abd;
+    --shadow: 0 2px 16px rgba(0,0,0,0.08);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  .header {
+    background: #1a1a2e;
+    color: #fff;
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+  .header h1 { font-size: 20px; font-weight: 600; }
+  .header .subtitle { font-size: 13px; opacity: 0.7; margin-top: 2px; }
+
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 24px 16px;
+  }
+
+  /* 上传区域 */
+  .upload-zone {
+    background: var(--card-bg);
+    border: 2px dashed #ccc;
+    border-radius: 12px;
+    padding: 48px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .upload-zone:hover, .upload-zone.drag-over {
+    border-color: var(--accent);
+    background: #f0f7ff;
+  }
+  .upload-zone .icon { font-size: 48px; margin-bottom: 12px; }
+  .upload-zone h3 { font-size: 18px; margin-bottom: 8px; color: var(--text); }
+  .upload-zone p { font-size: 14px; color: var(--text-secondary); }
+  .upload-zone input { display: none; }
+
+  /* 工具栏 */
+  .toolbar {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 20px;
+    padding: 16px;
+    background: var(--card-bg);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+  }
+  .toolbar .file-name {
+    flex: 1;
+    min-width: 150px;
+    font-size: 14px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+  }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-secondary {
+    background: #fff;
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { background: #f0f0f0; }
+  .btn-outline {
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+  }
+  .btn-outline:hover { background: #f0f7ff; }
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* 预览区域 */
+  .preview-section {
+    background: var(--card-bg);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .preview-header {
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .page-size-selector {
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 13px;
+    background: #fff;
+  }
+  .preview-body {
+    padding: 40px;
+    min-height: 400px;
+    background: #fff;
+    transition: width 0.3s;
+    margin: 0 auto;
+    box-shadow: 0 0 0 1px #eee;
+    transform-origin: top center;
+  }
+  .preview-body.a4 { width: 210mm; }
+  .preview-body.letter { width: 216mm; }
+
+  /* 文档内容样式 */
+  .preview-body h1 { font-size: 2em; margin: 0.67em 0; }
+  .preview-body h2 { font-size: 1.5em; margin: 0.75em 0; }
+  .preview-body h3 { font-size: 1.17em; margin: 0.83em 0; }
+  .preview-body p { margin: 0.5em 0; line-height: 1.6; }
+  .preview-body table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1em 0;
+  }
+  .preview-body table td, .preview-body table th {
+    border: 1px solid #ccc;
+    padding: 6px 10px;
+  }
+  .preview-body img { max-width: 100%; height: auto; }
+  .preview-body ul, .preview-body ol { padding-left: 2em; margin: 0.5em 0; }
+
+  /* 空状态 */
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-secondary);
+  }
+  .empty-state .icon { font-size: 64px; margin-bottom: 16px; opacity: 0.4; }
+
+  /* 状态消息 */
+  .toast {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 12px 24px;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 14px;
+    z-index: 1000;
+    animation: slideIn 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  }
+  .toast.success { background: #4caf50; }
+  .toast.error { background: #f44336; }
+  .toast.info { background: #2196f3; }
+  @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+  /* 打印样式 */
+  @media print {
+    body { background: #fff; }
+    .header, .toolbar, .upload-zone, .preview-header, .toast { display: none !important; }
+    .container { max-width: none; padding: 0; }
+    .preview-section { box-shadow: none; border-radius: 0; }
+    .preview-body { box-shadow: none; margin: 0; width: 100% !important; padding: 0; }
+  }
+
+  @media (max-width: 768px) {
+    .preview-body { padding: 20px; }
+    .preview-body.a4, .preview-body.letter { width: 100%; }
+    .toolbar { flex-direction: column; align-items: stretch; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>Word 转 PDF</h1>
+    <div class="subtitle">支持 .docx 文件，在浏览器中预览并导出为 PDF</div>
+  </div>
+</div>
+
+<div class="container">
+  <!-- 上传区域 -->
+  <div class="upload-zone" id="uploadZone">
+    <div class="icon">📄</div>
+    <h3>点击上传或拖拽 Word 文件到此处</h3>
+    <p>支持 .docx 格式，文件内容仅在本地浏览器中处理，不会上传到服务器</p>
+    <input type="file" id="fileInput" accept=".docx">
+  </div>
+
+  <!-- 工具栏 -->
+  <div class="toolbar" id="toolbar" style="display:none;">
+    <span class="file-name" id="fileName"></span>
+    <button class="btn btn-outline" id="btnChange">更换文件</button>
+    <button class="btn btn-primary" id="btnExport">导出 PDF</button>
+  </div>
+
+  <!-- 预览区域 -->
+  <div class="preview-section" id="previewSection" style="display:none;">
+    <div class="preview-header">
+      <span>文档预览</span>
+      <select class="page-size-selector" id="pageSize">
+        <option value="a4">A4 (210mm)</option>
+        <option value="letter">Letter (216mm)</option>
+      </select>
+    </div>
+    <div class="preview-body a4" id="previewBody"></div>
+  </div>
+</div>
+
+<script>
+(function() {
+  const uploadZone = document.getElementById('uploadZone');
+  const fileInput = document.getElementById('fileInput');
+  const toolbar = document.getElementById('toolbar');
+  const previewSection = document.getElementById('previewSection');
+  const previewBody = document.getElementById('previewBody');
+  const fileName = document.getElementById('fileName');
+  const btnChange = document.getElementById('btnChange');
+  const btnExport = document.getElementById('btnExport');
+  const pageSize = document.getElementById('pageSize');
+
+  let currentFile = null;
+  let documentTitle = 'document';
+
+  // 上传区域点击
+  uploadZone.addEventListener('click', function() { fileInput.click(); });
+  fileInput.addEventListener('change', function(e) {
+    if (e.target.files.length > 0) handleFile(e.target.files[0]);
+  });
+
+  // 拖拽上传
+  uploadZone.addEventListener('dragover', function(e) { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+  uploadZone.addEventListener('dragleave', function() { uploadZone.classList.remove('drag-over'); });
+  uploadZone.addEventListener('drop', function(e) {
+    e.preventDefault();
+    uploadZone.classList.remove('drag-over');
+    var file = e.dataTransfer.files[0];
+    if (file && file.name.endsWith('.docx')) {
+      handleFile(file);
+    } else {
+      showToast('请上传 .docx 格式的文件', 'error');
+    }
+  });
+
+  // 更换文件
+  btnChange.addEventListener('click', function() { fileInput.click(); });
+
+  // 页面尺寸切换
+  pageSize.addEventListener('change', function() {
+    previewBody.className = 'preview-body ' + this.value;
+  });
+
+  // 导出 PDF
+  btnExport.addEventListener('click', function() {
+    showToast('正在准备导出...', 'info');
+    // 短暂延迟确保 toast 渲染后再打印
+    setTimeout(function() {
+      // 移除现有 toast 以免印到 PDF 中
+      var existingToast = document.querySelector('.toast');
+      if (existingToast) existingToast.remove();
+      window.print();
+    }, 300);
+  });
+
+  function handleFile(file) {
+    if (!file.name.endsWith('.docx')) {
+      showToast('请上传 .docx 格式的文件', 'error');
+      return;
+    }
+
+    currentFile = file;
+    documentTitle = file.name.replace(/\.docx$/i, '');
+    fileName.textContent = file.name;
+
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var arrayBuffer = e.target.result;
+      mammoth.convertToHtml({ arrayBuffer: arrayBuffer }, {
+        styleMap: [
+          "p[style-name='Heading 1'] => h1:fresh",
+          "p[style-name='Heading 2'] => h2:fresh",
+          "p[style-name='Heading 3'] => h3:fresh",
+          "p[style-name='Heading 4'] => h4:fresh",
+          "r[style-name='Strong'] => strong",
+          "r[style-name='Emphasis'] => em"
+        ]
+      })
+      .then(function(result) {
+        previewBody.innerHTML = result.value || '<div class="empty-state"><div class="icon">📭</div><p>文档内容为空</p></div>';
+        // 如果有警告记录到控制台
+        if (result.messages && result.messages.length > 0) {
+          console.log('Mammoth 转换消息:', result.messages);
+        }
+        showUI();
+        showToast('转换成功', 'success');
+      })
+      .catch(function(err) {
+        previewBody.innerHTML = '<div class="empty-state"><div class="icon">❌</div><p>转换失败: ' + escapeHtml(err.message) + '</p></div>';
+        showUI();
+        showToast('转换失败: ' + err.message, 'error');
+      });
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  function showUI() {
+    uploadZone.style.display = 'none';
+    toolbar.style.display = 'flex';
+    previewSection.style.display = 'block';
+  }
+
+  function showToast(msg, type) {
+    var existing = document.querySelector('.toast');
+    if (existing) existing.remove();
+    var toast = document.createElement('div');
+    toast.className = 'toast ' + type;
+    toast.textContent = msg;
+    document.body.appendChild(toast);
+    setTimeout(function() {
+      if (toast.parentNode) toast.remove();
+    }, 2500);
+  }
+
+  function escapeHtml(str) {
+    var div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+})();
+</script>
+
+</body>
+</html>
