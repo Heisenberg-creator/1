@@ -1,11 +1,27 @@
 import streamlit as st
 from pdf2docx import Converter
-from docx2pdf import convert
+from docx import Document
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
 import os
 import tempfile
 
 st.title("📄 PDF ↔ Word 双向转换工具")
 st.info("支持拖拽上传文件，自动识别格式并转换，转换完成后可直接下载。")
+
+def docx_to_pdf(docx_path, pdf_path):
+    doc = Document(docx_path)
+    c = canvas.Canvas(pdf_path, pagesize=letter)
+    width, height = letter
+    y = height - 40
+    for para in doc.paragraphs:
+        if para.text.strip() != "":
+            c.drawString(40, y, para.text)
+            y -= 15
+            if y < 40:
+                c.showPage()
+                y = height - 40
+    c.save()
 
 uploaded_file = st.file_uploader("上传文件（.pdf 或 .docx）", type=["pdf", "docx"])
 
@@ -32,7 +48,7 @@ if uploaded_file is not None:
         st.write("正在将 Word 转换为 PDF...")
         output_name = os.path.splitext(file_name)[0] + ".pdf"
         output_path = tempfile.mktemp(suffix=".pdf")
-        convert(tmp_path, output_path)
+        docx_to_pdf(tmp_path, output_path)
 
     if output_path and os.path.exists(output_path):
         with open(output_path, "rb") as f:
